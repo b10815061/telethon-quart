@@ -1,0 +1,165 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Websocket example</title>
+  </head>  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js" integrity="sha512-bLT0Qm9VnAYZDflyKcBaQ2gg0hSYNQrJ8RilYldYQ1FxQYoCLtUjuuRuZo+fjqhx/qtq/1itJ0C2ejDxltZVFg==" crossorigin="anonymous"></script>
+  <script type="text/javascript">
+    function connect(endpoint){
+      var ws = new WebSocket('ws://' + document.domain + ':' + location.port + endpoint);
+      return ws
+    }
+
+    $(document).ready(function(){
+    var msg = new WebSocket('ws://' + document.domain + ':' + location.port + '/ws');
+    var conn = new WebSocket('ws://' + document.domain + ':' + location.port + '/conn');
+    var disconn = new WebSocket('ws://' + document.domain + ':' + location.port + '/disconnect')
+    var pri = new WebSocket('ws://' + document.domain + ':' + location.port + '/pri')
+    msg.onmessage = function (event) {
+      var messages_dom = document.getElementsByTagName('ul')[0];
+        var message_dom = document.createElement('li');
+        tmp = event.data.replaceAll("\'","\"")
+        try {
+          conosle.log("in msg")
+          console.log(JSON.parse(tmp))
+          data = JSON.parse(tmp)
+          var content_dom = document.createTextNode(data.channel +"[" + data.from + "]" + " : " +  data.message);
+        }catch(e){
+          var content_dom = document.createTextNode(event.data);
+        }
+        message_dom.appendChild(content_dom);
+        messages_dom.appendChild(message_dom);
+    };
+    conn.onmessage = function (event) {
+      var messages_dom = document.getElementsByTagName('ul')[0];
+        var message_dom = document.createElement('li');
+        tmp = event.data.replaceAll("\'","\"")
+         try{
+          ()=>console.log("in conn")
+          console.log(JSON.parse(tmp))
+          let data = JSON.parse(tmp)
+          if(data.tag == "image"){
+            if(data.b64!="None"){
+            let name = data.name
+            let b64 = data.b64 
+            let pri = data.pri
+            let id = data.id
+            $('#image').append('<br>' + $('<div/>').text(name + '(' +id + ')').html());
+            $('#image').append('<br>' + $('<div/>').text("\t" + pri).html()+'<br>');
+            $('#image').append(`<img src="data:image/png;base64,${b64}"/>`);
+            }else{
+              let name = data.name
+              let pri = data.pri
+              let id = data.id
+              $('#image').append('<br>' + $('<div/>').text(name + '(' +id + ')').html());
+              $('#image').append('<br>' + $('<div/>').text("\t" + pri).html()+'<br>');
+            }
+          }else{
+          var content_dom = document.createTextNode(data.channel +"[" + data.from + "]" + " : " +  data.message);
+          $('#channel').val(data.channel)
+          message_dom.appendChild(content_dom);
+          messages_dom.appendChild(message_dom);
+          $('#conn').attr('disabled',true);
+          $('#phone').attr('disabled',true)
+          }
+        }catch(e){
+          var content_dom = document.createTextNode(event.data);
+          message_dom.appendChild(content_dom);
+          messages_dom.appendChild(message_dom);
+          $('#conn').attr('disabled',true);
+          $('#phone').attr('disabled',true)
+        }
+          
+        
+    };
+    pri.onmessage = function (event) {
+      var messages_dom = document.getElementsByTagName('ul')[0];
+        var message_dom = document.createElement('li');
+        var content_dom = document.createTextNode(event.data);
+        message_dom.appendChild(content_dom);
+        messages_dom.appendChild(message_dom);
+        $('#conn').attr('disabled',false)
+        $('#phone').attr('disabled',false)
+    };
+    disconn.onmessage = function (event) {
+      var messages_dom = document.getElementsByTagName('ul')[0];
+        var message_dom = document.createElement('li');
+        var content_dom = document.createTextNode(event.data);
+        message_dom.appendChild(content_dom);
+        messages_dom.appendChild(message_dom);
+        $('#conn').attr('disabled',false)
+        $('#phone').attr('disabled',false)
+    };
+    $('#conn').click(()=>{
+        if(conn.readyState==conn.CLOSED){
+          console.log("reconnecting conn")
+          conn = connect('/conn')
+        }
+        conn.send($('#phone').val())
+        return false
+    })
+
+    $('#send').click(()=>{
+        if(msg.readyState==msg.CLOSED){
+          console.log("reconnecting msg")
+          msg = connect('/ws')
+        }
+        console.log("send")
+        let obj = {
+          channel : $('#channel').val(),
+          message : $('#message').val()
+        }
+        console.log(obj)
+        msg.send(JSON.stringify(obj))
+        $('#message').val("")
+        return false
+        })
+    $('#set_pri').click(()=>{
+        if(pri.readyState==pri.CLOSED){
+          console.log("reconnecting pri")
+          msg = connect('/pri')
+        }
+        console.log("set_pri")
+        let obj = {
+          channel : $('#pri_channel').val(),
+          pri : $('#pri').val()
+        }
+        console.log(obj)
+        pri.send(JSON.stringify(obj))
+        return false
+        })
+    $('#disconnect').click(()=>{
+        if(disconn.readyState==disconn.CLOSED){
+          console.log("reconnecting disconnect")
+          disconn = connect('/disconnect')
+        }
+        console.log("disconnect")
+        disconn.send(1)
+        return false
+        })
+    })  
+    
+  </script>
+  <body>
+    <form>
+        <input type="text" id="phone">
+        <input type="submit" id="conn" value="connect">
+    </form>
+    <form>
+        <input type="text" id="channel">
+        <input type="text" id="message">
+        <input type="submit" id="send" value="send">
+    </form>
+    <form>
+      <input type="text" id="pri_channel">
+      <input type="text" id="pri">
+      <input type="submit" id="set_pri" value="set_pri">
+  </form>
+    <form>
+      <input type="submit" id="disconnect" value="disconnect_from_telegram">
+    </form>
+    <ul></ul>
+    <div id="image"></div>
+    
+  </body>
+</html>

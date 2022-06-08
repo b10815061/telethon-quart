@@ -1,0 +1,14 @@
+var ws = new WebSocket('ws://' + document.domain + ':' + location.port + '/ws');
+ws.onmessage = function (event) {
+  var messages_dom = document.getElementsByTagName('ul')[0];
+  var message_dom = document.createElement('li');
+  var content_dom = document.createTextNode('Received: ' + event.data);
+  message_dom.appendChild(content_dom);
+  messages_dom.appendChild(message_dom);
+};
+
+var button = document.getElementsByTagName('button')[0];
+button.onclick = function() {
+  var content = document.getElementsByTagName('input')[0].value;
+  ws.send(content);
+};
