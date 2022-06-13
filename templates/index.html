@@ -15,6 +15,12 @@
     var conn = new WebSocket('ws://' + document.domain + ':' + location.port + '/conn');
     var disconn = new WebSocket('ws://' + document.domain + ':' + location.port + '/disconnect')
     var pri = new WebSocket('ws://' + document.domain + ':' + location.port + '/pri')
+    // channel & num of unread msg map
+    var unread_count = new Map();
+
+    // timezone for specific offset in time
+    const date = new Date()
+    const offset = date.getTimezoneOffset()
     msg.onmessage = function (event) {
       var messages_dom = document.getElementsByTagName('ul')[0];
         var message_dom = document.createElement('li');
@@ -34,10 +40,9 @@
       var messages_dom = document.getElementsByTagName('ul')[0];
         var message_dom = document.createElement('li');
         tmp = event.data.replaceAll("\'","\"")
-         try{
-          ()=>console.log("in conn")
-          console.log(JSON.parse(tmp))
-          let data = JSON.parse(tmp)
+        console.log(JSON.parse(tmp))
+        let data = JSON.parse(tmp)
+         try{  
           if(data.tag == "image"){
             if(data.b64!="None"){
             let name = data.name
@@ -54,20 +59,37 @@
               $('#image').append('<br>' + $('<div/>').text(name + '(' +id + ')').html());
               $('#image').append('<br>' + $('<div/>').text("\t" + pri).html()+'<br>');
             }
-          }else{
-          var content_dom = document.createTextNode(data.channel +"[" + data.from + "]" + " : " +  data.message);
-          $('#channel').val(data.channel)
-          message_dom.appendChild(content_dom);
-          messages_dom.appendChild(message_dom);
-          $('#conn').attr('disabled',true);
-          $('#phone').attr('disabled',true)
+          }else if(data.tag == "initial"){
+             
+             var unread_dom = document.createTextNode("[" + data.channel + "]" + " : " + data.count );
+             unread_count.set(data.channel,data.count)
+             console.log(unread_count)
+             message_dom.appendChild(unread_dom);
+             messages_dom.appendChild(message_dom);
+          }else if(data.tag == "system"){
+             var sys_dom = document.createTextNode("[System] :" + data.context )
+             message_dom.appendChild(sys_dom);
+             messages_dom.appendChild(message_dom);
+          }
+          else{
+            // the offset is in the measure of PST -> multiply -1 to convert to CST
+            CST = (offset*-1/60)
+            // modify the given timezone
+            localhour = String((parseInt(data.time_stamp.slice(11,13)) + CST)%24).padStart(2,'0')
+            time_stamp = data.time_stamp.slice(0,11) + localhour + data.time_stamp.slice(13,19)
+            // print out whole msg with time
+            var content_dom = document.createTextNode(data.channel +"[" + data.from + "]"  + "(" + unread_count.get(data.channel) +  ")"+ " : " +  data.message + "<" + time_stamp+ ">");
+            unread_count.set(data.channel,unread_count.get(data.channel)+1)
+            
+
+            $('#channel').val(data.channel)
+            message_dom.appendChild(content_dom);
+            messages_dom.appendChild(message_dom);
+            $('#conn').attr('disabled',true);
+            $('#phone').attr('disabled',true)
           }
         }catch(e){
-          var content_dom = document.createTextNode(event.data);
-          message_dom.appendChild(content_dom);
-          messages_dom.appendChild(message_dom);
-          $('#conn').attr('disabled',true);
-          $('#phone').attr('disabled',true)
+          console.log(e)
         }
           
         
