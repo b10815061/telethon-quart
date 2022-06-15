@@ -10,26 +10,89 @@
       return ws
     }
 
+    // channel & latest msg id map
+    var latest_message_id = new Map()
+
+    function getMessage(channel_id,message_id){
+      
+      //$('#from_message_id').filter(()=>{return $(this).val()==""}).val(0) // example of set the value of the specific tag if the value of it is not given.
+      
+      if(message_id==""){
+        message_id = 0
+      }
+      console.log(message_id)
+      $.ajax({
+        url:`http://localhost:5000/getMessage?channel=${channel_id}&message_id=${message_id}`,
+        dataType: 'json' // this implies that the backend should return a json format. If violates, the response will always end in the ".fail block. 
+      })
+      .done((res)=>{
+        console.log(res)
+        res = JSON.stringify(res)
+        tmp = res // beware of "", it will result in json parsing error in nextline
+        let data = JSON.parse(tmp)
+        // still finding a solution to response with statusCode from Quart instead of writing the following code
+        if(data.code == 200){
+          if ($('#show_more') !== null){
+            console.log("found")
+            $('#show_more').remove()
+          }
+          var msgDOM = document.getElementById("chatid")
+          data.context.map((d)=>{
+            // modify the given timezone
+            
+            var newDOM = document.createElement("li")
+            localhour = String((parseInt(d.timestamp.slice(11,13)) + CST)%24).padStart(2,'0')
+            time_stamp = d.timestamp.slice(0,11) + localhour + d.timestamp.slice(13,19)
+            var msgNode = document.createTextNode(d.channel +"[" + d.from + "]" + " : " +  d.data + "<" + time_stamp+ "> , " + "message id = " + d.message_id);
+            newDOM.appendChild(msgNode)
+            msgDOM.appendChild(newDOM)
+          })
+
+          show_more = document.createElement("button")
+          show_more.innerHTML = "show more"
+          show_more.id = "show_more"
+          /*show_more.onclick = function() // the ONLY format : = function() { ... }
+          {
+            console.log("click on show more")
+          }
+          */
+          show_more.onclick = function(){getMessage(data.context[0].channel,data.context[data.context.length-1].message_id)}
+          msgDOM.appendChild(show_more)
+
+          latest_message_id.clear()
+          latest_message_id.set(data.context[0].channel,data.context[data.context.length-1].message_id)
+          console.log(latest_message_id)
+          
+        }
+        else{
+          console.log(data.error)
+        }
+      })
+    }
+
     $(document).ready(function(){
     var msg = new WebSocket('ws://' + document.domain + ':' + location.port + '/ws');
     var conn = new WebSocket('ws://' + document.domain + ':' + location.port + '/conn');
     var disconn = new WebSocket('ws://' + document.domain + ':' + location.port + '/disconnect')
     var pri = new WebSocket('ws://' + document.domain + ':' + location.port + '/pri')
-    // channel & num of unread msg map
+    // channel & unread msg num map
     var unread_count = new Map();
-
+    
     // timezone for specific offset in time
     const date = new Date()
     const offset = date.getTimezoneOffset()
+    // the offset is in the measure of PST -> multiply -1 to convert to CST
+    CST = (offset*-1/60)
+
     msg.onmessage = function (event) {
       var messages_dom = document.getElementsByTagName('ul')[0];
         var message_dom = document.createElement('li');
         tmp = event.data.replaceAll("\'","\"")
         try {
-          conosle.log("in msg")
-          console.log(JSON.parse(tmp))
+          //conosle.log("in msg")
+          //console.log(JSON.parse(tmp))
           data = JSON.parse(tmp)
-          var content_dom = document.createTextNode(data.channel +"[" + data.from + "]" + " : " +  data.message);
+          var content_dom = document.createTextNode(data.channel +"[" + data.from + "]" + " : " +  data.data);
         }catch(e){
           var content_dom = document.createTextNode(event.data);
         }
@@ -37,21 +100,22 @@
         messages_dom.appendChild(message_dom);
     };
     conn.onmessage = function (event) {
-      var messages_dom = document.getElementsByTagName('ul')[0];
+        var messages_dom = document.getElementsByTagName('ul')[0];
         var message_dom = document.createElement('li');
-        tmp = event.data.replaceAll("\'","\"")
-        console.log(JSON.parse(tmp))
+        console.log("b4" , event.data)
+        tmp = event.data
+        console.log("after" , tmp)
         let data = JSON.parse(tmp)
          try{  
-          if(data.tag == "image"){
+          if(data.tag == "profile"){
             if(data.b64!="None"){
-            let name = data.name
-            let b64 = data.b64 
-            let pri = data.pri
-            let id = data.id
-            $('#image').append('<br>' + $('<div/>').text(name + '(' +id + ')').html());
-            $('#image').append('<br>' + $('<div/>').text("\t" + pri).html()+'<br>');
-            $('#image').append(`<img src="data:image/png;base64,${b64}"/>`);
+              let name = data.name
+              let b64 = data.b64 
+              let pri = data.pri
+              let id = data.id
+              $('#image').append('<br>' + $('<div/>').text(name + '(' +id + ')').html());
+              $('#image').append('<br>' + $('<div/>').text("\t" + pri).html()+'<br>');
+              $('#image').append(`<img src="data:image/png;base64,${b64}"/>`);
             }else{
               let name = data.name
               let pri = data.pri
@@ -60,33 +124,39 @@
               $('#image').append('<br>' + $('<div/>').text("\t" + pri).html()+'<br>');
             }
           }else if(data.tag == "initial"){
-             
              var unread_dom = document.createTextNode("[" + data.channel + "]" + " : " + data.count );
              unread_count.set(data.channel,data.count)
-             console.log(unread_count)
              message_dom.appendChild(unread_dom);
              messages_dom.appendChild(message_dom);
           }else if(data.tag == "system"){
              var sys_dom = document.createTextNode("[System] :" + data.context )
              message_dom.appendChild(sys_dom);
              messages_dom.appendChild(message_dom);
+             if (data.context =='Connected'){
+                $('#conn').attr('disabled',true);
+                $('#phone').attr('disabled',true);
+             }
+          }else if(data.tag=="image"){
+             let b64 = data.data
+             console.log(b64)
+             var content_dom = document.createTextNode(`${data.channel}[${data.from}](${unread_count.get(data.channel)}):`)
+
+             unread_count.set(data.channel,unread_count.get(data.channel)+1)
+             $('#channel').val(data.channel)
+             message_dom.appendChild(content_dom);
+             $('#image').append(`<img src="base64,${b64}"/>`)
+             messages_dom.appendChild(message_dom);
           }
           else{
-            // the offset is in the measure of PST -> multiply -1 to convert to CST
-            CST = (offset*-1/60)
             // modify the given timezone
             localhour = String((parseInt(data.time_stamp.slice(11,13)) + CST)%24).padStart(2,'0')
             time_stamp = data.time_stamp.slice(0,11) + localhour + data.time_stamp.slice(13,19)
             // print out whole msg with time
-            var content_dom = document.createTextNode(data.channel +"[" + data.from + "]"  + "(" + unread_count.get(data.channel) +  ")"+ " : " +  data.message + "<" + time_stamp+ ">");
+            var content_dom = document.createTextNode(data.channel +"[" + data.from + "]"  + "(" + unread_count.get(data.channel) +  ")"+ " : " +  data.data + "<" + time_stamp+ ">");
             unread_count.set(data.channel,unread_count.get(data.channel)+1)
-            
-
             $('#channel').val(data.channel)
             message_dom.appendChild(content_dom);
             messages_dom.appendChild(message_dom);
-            $('#conn').attr('disabled',true);
-            $('#phone').attr('disabled',true)
           }
         }catch(e){
           console.log(e)
@@ -151,15 +221,24 @@
         return false
         })
     $('#disconnect').click(()=>{
-        if(disconn.readyState==disconn.CLOSED){
-          console.log("reconnecting disconnect")
-          disconn = connect('/disconnect')
-        }
-        console.log("disconnect")
-        disconn.send(1)
-        return false
-        })
-    })  
+      if(disconn.readyState==disconn.CLOSED){
+        console.log("reconnecting disconnect")
+        disconn = connect('/disconnect')
+      }
+      console.log("disconnect")
+      disconn.send(1)
+      return false
+    })
+
+
+    $('#get_msg').click(()=>{
+      channel_id = $('#selected_channel').val()
+      getMessage(channel_id,0)
+      return false
+    })
+
+  }) 
+
     
   </script>
   <body>
@@ -175,12 +254,22 @@
     <form>
       <input type="text" id="pri_channel">
       <input type="text" id="pri">
-      <input type="submit" id="set_pri" value="set_pri">
-  </form>
+      <input type="submit" id="set_pri" value="set pri">
+    </form>
+    <form>
+      <input type="text" id="selected_channel">
+      <input type="submit" id="get_msg" value="enter chat">
+    </form>
     <form>
       <input type="submit" id="disconnect" value="disconnect_from_telegram">
     </form>
     <ul></ul>
+    <div id = "chat">
+      <hr style = "height:2px;color:black">
+      <h2>Chats</h2>
+      <ul id="chatid"></ul>
+      <hr style="height:2px;color:black">
+    </div>
     <div id="image"></div>
     
   </body>

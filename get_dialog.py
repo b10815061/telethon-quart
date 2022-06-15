@@ -96,6 +96,7 @@ async def retrive_prior(client_id,input_channel):
     
     return (channel.priority)
 
+## return 10 tuples for a given user 
 async def retrive_all(client_id):
     ### find if it exists
     with Session(engine) as session:
