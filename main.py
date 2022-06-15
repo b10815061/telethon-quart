@@ -39,12 +39,16 @@ async def getMessage():
                     else:
                         ## which menas if the from_id is NoneType, then the channel itself is a user
                         sender_instance = channel_instance
-                    if sender_instance.username!=None: 
-                        sender = sender_instance.username
-                    elif sender_instance.first_name!=None :
-                        lname = sender_instance.last_name if sender_instance.last_name!=None else ""
-                        sender = sender_instance.first_name + lname
-                    else :
+                    try:
+                        if sender_instance.username!=None: 
+                            sender = sender_instance.username
+                        elif sender_instance.first_name!=None :
+                            lname = sender_instance.last_name if sender_instance.last_name!=None else ""
+                            sender = sender_instance.first_name + lname
+                        else :
+                            print("AN ERROR MIGHT BE OCCUR")
+                            print(sender_instance,end="\n\n\n")
+                    except :
                         sender = sender_instance.title
                 except Exception as e:
                     print(e)
@@ -185,7 +189,11 @@ async def conn():
         ### hook on the incoming messages
         @client.on(events.NewMessage())
         async def handler(event):
-                
+            
+            test = telethon.utils.get_message_id(event.message)
+            print(event.message)
+            print("test " , test ,end="\n\n\n\n")
+
             channel = await event.get_chat()
             '''print(channel,end="\n\n\n\n")
             print(event.message,end="\n\n\n")'''
@@ -205,11 +213,16 @@ async def conn():
             
             time_stamp = event.message.date
             if type(event.message.media) == telethon.tl.types.MessageMediaPhoto :
-                print(event.message.media)
-                photo_byte = (event.message.media.photo.file_reference)
-                ## convert byte to base64 here
-                data = base64.b64encode(photo_byte).decode()
                 tag = "image"
+                ## download the photo enclosed with the message
+                image_path = await client.download_media(event.message)
+                print("image " , image_path,end="\n\n\n")
+                ## convert the photo archieve to base64
+                with open(image_path,'rb') as file:
+                    f = file.read()
+                    data = base64.b64encode(f).decode()
+                print(data)
+
             else : 
                 data = event.message.message
                 print(type(data))
@@ -233,7 +246,6 @@ async def conn():
             obj = obj.replace("{'", '{"').replace("'}", '"}')
             obj = obj.replace("\\\\","\\")
             print(obj,end="\n\n")
-            #obj = str(obj).replace("\'","\"") ## 'data' : 'didn't' -> "data" : "didn"t" (this is for JSON format)
             await websocket.send(obj)
             '''try:
                 await client.send_read_acknowledge(channel_id.id,event.message)

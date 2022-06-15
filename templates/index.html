@@ -140,11 +140,12 @@
              let b64 = data.data
              console.log(b64)
              var content_dom = document.createTextNode(`${data.channel}[${data.from}](${unread_count.get(data.channel)}):`)
-
+             var image = document.createElement("img")
+             image.src = `data:image/jpeg;base64,${b64}`
              unread_count.set(data.channel,unread_count.get(data.channel)+1)
              $('#channel').val(data.channel)
              message_dom.appendChild(content_dom);
-             $('#image').append(`<img src="base64,${b64}"/>`)
+             message_dom.appendChild(image)
              messages_dom.appendChild(message_dom);
           }
           else{
