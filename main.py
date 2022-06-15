@@ -1,3 +1,4 @@
+import os
 from re import A
 import time 
 from quart import Quart,render_template,request
@@ -221,6 +222,7 @@ async def conn():
                 with open(image_path,'rb') as file:
                     f = file.read()
                     data = base64.b64encode(f).decode()
+                os.remove(image_path)
                 print(data)
 
             else : 
