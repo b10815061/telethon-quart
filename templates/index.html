@@ -69,6 +69,18 @@
               console.log(gif)
               newDOM.appendChild(msgNode)
               newDOM.appendChild(gif)
+          }else if(d.tag=="audio"){
+              var msgNode = document.createTextNode(d.channel +"[" + d.from + "]" + " : " );
+              var audio = document.createElement("audio")
+              var source = document.createElement("source")
+              source.type = "audio/ogg"
+              source.src = `data:audio/ogg;base64,${d.data}`
+              audio.setAttribute("controls","")
+              audio.preload = "metadata"
+              audio.appendChild(source)
+              console.log(audio)
+              newDOM.appendChild(msgNode)
+              newDOM.appendChild(audio)
           }
             
             msgDOM.appendChild(newDOM)
@@ -128,9 +140,7 @@
     conn.onmessage = function (event) {
         var messages_dom = document.getElementsByTagName('ul')[0];
         var message_dom = document.createElement('li');
-        console.log("b4" , event.data)
         tmp = event.data
-        console.log("after" , tmp)
         let data = JSON.parse(tmp)
          try{  
           if(data.tag == "profile"){
@@ -194,6 +204,21 @@
              $('#channel').val(data.channel)
              message_dom.appendChild(content_dom);
              message_dom.appendChild(gif)
+             messages_dom.appendChild(message_dom);
+          }else if(data.tag=="audio"){
+             var content_dom = document.createTextNode(`${data.channel}[${data.from}](${unread_count.get(data.channel)}):`)
+             var audio = document.createElement("audio")
+             var source = document.createElement("source")
+             source.type = "audio/ogg"
+             source.src = `data:audio/ogg;base64,${data.data}`
+             audio.setAttribute("controls","")
+             audio.preload = "metadata"
+             unread_count.set(data.channel,unread_count.get(data.channel)+1)
+             $('#channel').val(data.channel)
+             audio.appendChild(source)
+             console.log(audio)
+             message_dom.appendChild(content_dom);
+             message_dom.appendChild(audio)
              messages_dom.appendChild(message_dom);
           }
           else{

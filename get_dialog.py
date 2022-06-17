@@ -136,11 +136,10 @@ async def set_pri(channel_id, pri):
     return
 
 
-async def check_user_existence(client) -> bool:
-    client_id: int = await client.get_me().id
+def check_user_existence(client_id: int) -> bool:
     with Session(engine) as session:
         exist = session.query(channels).filter(
-            channels.user_id == str(client_id))
+            channels.user_id == str(client_id)).all()
         if(len(exist)) > 1:
             return True
         return False

@@ -56,7 +56,7 @@ async def getMessage():
             "message_id") == 0 else int(request.args.get("message_id"))
         try:
             channel_instance: telethon.Channel = await client.get_entity((int(channel_id)))
-            msgs: list[telethon.message] = await client.get_messages(channel_instance, limit=20, offset_id=from_message_id)
+            msgs: list[telethon.message] = await client.get_messages(channel_instance, limit=5, offset_id=from_message_id)
             context: list[MessageObject] = []
 
             msg_instance: telethon.message
@@ -114,6 +114,14 @@ async def getMessage():
                             cur = time.time_ns()
                             # cannot solve frequency send in a short time due to the lib implementation
                             msg_content = await sendGIF(cur, sticker_path)
+                        elif(msg_instance.media.document.mime_type == "audio/ogg"):
+                            tag = "audio"
+                            audio_path = await client.download_media(msg_instance)
+                            with open(audio_path, 'rb') as file:
+                                oga_data = file.read()
+                                msg_content = base64.b64encode(
+                                    oga_data).decode()
+                            os.remove(audio_path)
                     else:
                         msg_content = msg_instance.message
                         tag = "message"
@@ -204,12 +212,14 @@ async def conn():
             }
             unread = str(unread).replace("\'", "\"")
             await websocket.send(unread)
+        # get client informations
+        me = await client.get_me()
 
         # initial database
-        if(not get_dialog.check_user_existence()):
+        if(not get_dialog.check_user_existence(me.id)):
+            print("client inexsit")
             await get_dialog.get(client)
         # send images
-        me = await client.get_me()
         channels: list[int] = await get_dialog.retrive_all(me.id)
         # for c in channels :
         #     chat_id = c.channel_id
@@ -303,6 +313,14 @@ async def conn():
 
                     # cannot solve frequency send in a short time due to the lib implementation
                     data = await sendGIF(cur, sticker_path)
+                elif(event.message.media.document.mime_type == "audio/ogg"):
+                    tag = "audio"
+                    audio_path = await client.download_media(event.message)
+                    with open(audio_path, 'rb') as file:
+                        oga_data = file.read()
+                        data = base64.b64encode(oga_data).decode()
+                        print(data)
+                    os.remove(audio_path)
 
             else:
                 tag = "message"
