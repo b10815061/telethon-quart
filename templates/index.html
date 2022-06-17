@@ -39,12 +39,38 @@
           var msgDOM = document.getElementById("chatid")
           data.context.map((d)=>{
             // modify the given timezone
+              var newDOM = document.createElement("li")
+              localhour = String((parseInt(d.timestamp.slice(11,13)) + CST)%24).padStart(2,'0')
+              time_stamp = d.timestamp.slice(0,11) + localhour + d.timestamp.slice(13,19)
+            if(d.tag=="message"){
+              var msgNode = document.createTextNode(d.channel +"[" + d.from + "]" + " : " +  d.data + "<" + time_stamp+ "> , " + "message id = " + d.message_id);
+              newDOM.appendChild(msgNode)
+            }else if(d.tag=="image"){
+              var msgNode = document.createTextNode(d.channel +"[" + d.from + "]" + " : " );
+              var image = document.createElement("img")
+              console.log(d.data)
+              image.src = `data:image/jpeg;base64,${d.data}`  
+              newDOM.appendChild(msgNode)
+              newDOM.appendChild(image)
+            }else if(d.tag=="mp4"){
+              var msgNode = document.createTextNode(d.channel +"[" + d.from + "]" + " : " );
+              var video = document.createElement("video")
+              video.type = "video/mp4"
+              video.src = `data:video/mp4;base64,${d.data}`
+              video.autoplay = true
+              video.loop = true
+              console.log(video)
+              newDOM.appendChild(msgNode)
+              newDOM.appendChild(video)
+          }else if(d.tag=="gif"){
+              var msgNode = document.createTextNode(d.channel +"[" + d.from + "]" + " : " );
+              var gif = document.createElement("img")
+              gif.src = `data:img/gif;base64,${d.data}`
+              console.log(gif)
+              newDOM.appendChild(msgNode)
+              newDOM.appendChild(gif)
+          }
             
-            var newDOM = document.createElement("li")
-            localhour = String((parseInt(d.timestamp.slice(11,13)) + CST)%24).padStart(2,'0')
-            time_stamp = d.timestamp.slice(0,11) + localhour + d.timestamp.slice(13,19)
-            var msgNode = document.createTextNode(d.channel +"[" + d.from + "]" + " : " +  d.data + "<" + time_stamp+ "> , " + "message id = " + d.message_id);
-            newDOM.appendChild(msgNode)
             msgDOM.appendChild(newDOM)
           })
 
@@ -138,7 +164,6 @@
              }
           }else if(data.tag=="image"){
              let b64 = data.data
-             console.log(b64)
              var content_dom = document.createTextNode(`${data.channel}[${data.from}](${unread_count.get(data.channel)}):`)
              var image = document.createElement("img")
              image.src = `data:image/jpeg;base64,${b64}`
@@ -146,6 +171,29 @@
              $('#channel').val(data.channel)
              message_dom.appendChild(content_dom);
              message_dom.appendChild(image)
+             messages_dom.appendChild(message_dom);
+          }else if(data.tag=="mp4"){
+             var content_dom = document.createTextNode(`${data.channel}[${data.from}](${unread_count.get(data.channel)}):`)
+             var video = document.createElement("video")
+             video.type = "video/mp4"
+             video.src = `data:video/mp4;base64,${data.data}`
+             video.autoplay = true
+             video.loop = true
+             console.log(video)
+             unread_count.set(data.channel,unread_count.get(data.channel)+1)
+             $('#channel').val(data.channel)
+             message_dom.appendChild(content_dom);
+             message_dom.appendChild(video)
+             messages_dom.appendChild(message_dom);
+          }else if(data.tag=="gif"){
+             var content_dom = document.createTextNode(`${data.channel}[${data.from}](${unread_count.get(data.channel)}):`)
+             var gif = document.createElement("img")
+             gif.src = `data:img/gif;base64,${data.data}`
+             console.log(gif)
+             unread_count.set(data.channel,unread_count.get(data.channel)+1)
+             $('#channel').val(data.channel)
+             message_dom.appendChild(content_dom);
+             message_dom.appendChild(gif)
              messages_dom.appendChild(message_dom);
           }
           else{
