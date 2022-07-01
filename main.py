@@ -23,6 +23,9 @@ app = Quart(__name__)
 api_id = 12655046
 api_hash = 'd84ab8008abfb3ec244630d2a6778fc6'
 client = None
+client_list = dict()
+
+# !!!!too slow
 
 
 async def sendGIF(cur: int, path: str) -> str:
@@ -47,9 +50,26 @@ async def hello():
 MessageObject = NewType('MessageObject', object)
 
 
+@app.route('/client_list')
+async def list():
+    global client_list
+    res = ""
+    for item in client_list:
+        print(item)
+        res += str(item)
+        print(client_list[item])
+    return res
+
+
 # endPoint http://localhost:5000/getMessage?channel=(arbitrary)
 @app.route('/getMessage')
 async def getMessage():
+
+    print("\n\n\n\n", request.sid)
+    userID = request.args.get("userID")
+    global client_list
+    print("userID exist : ",  userID in client_list)
+
     if client != None and client.is_connected():
         channel_id: int = request.args.get("channel")
         from_message_id: int = 0 if request.args.get(
@@ -122,6 +142,10 @@ async def getMessage():
                                 msg_content = base64.b64encode(
                                     oga_data).decode()
                             os.remove(audio_path)
+                        elif(msg_instance.media.document.mime_type == 'application/pdf'):
+                            tag = "pdf"
+                            print(
+                                f"message URL : https://t.me/c/{channel_id}/{msg_instance.id}")
                     else:
                         msg_content = msg_instance.message
                         tag = "message"
@@ -176,13 +200,15 @@ async def conn():
                 await websocket.send("System : Invalid Phone Number")
                 await websocket.send("System : Login aborted")
                 return
+
         sys = {
             "tag": "system",
             "context": "Connected"
         }
 
-        sys = str(sys).replace("\'", "\"")
-        await websocket.send(sys)
+        sys = str(sys).replace('\'', '\"')
+
+        await websocket.send(str(sys))
 
         # searching PoS
         async for message in client.iter_messages('testing', search='vava'):
@@ -212,13 +238,31 @@ async def conn():
             }
             unread = str(unread).replace("\'", "\"")
             await websocket.send(unread)
-        # get client informations
+
         me = await client.get_me()
+
+        global client_list
+        client_list[me.id] = client
+
+        print("\n\n\n\n\n", client_list[me.id])
 
         # initial database
         if(not get_dialog.check_user_existence(me.id)):
             print("client inexsit")
             await get_dialog.get(client)
+            await get_dialog.initial_info(me.id)
+
+        # get client info
+        font_size, language = await get_dialog.retrieve_info(me.id)
+        info = {
+            'tag': 'system',
+            'font_size': font_size,
+            'language': language,
+            'context': f'font_size = {font_size}, language = {language}'
+        }
+        info = str(info).replace('\'', '\"')
+        await websocket.send((info))
+
         # send images
         channels: list[int] = await get_dialog.retrive_all(me.id)
         # for c in channels :
@@ -321,6 +365,10 @@ async def conn():
                         data = base64.b64encode(oga_data).decode()
                         print(data)
                     os.remove(audio_path)
+                elif(event.message.media.document.mime_type == 'application/pdf'):
+                    tag = "pdf"
+                    print(
+                        f"message URL : https://t.me/c/{channel_id}/{event.message.id}")  # the URL only work for public channel
 
             else:
                 tag = "message"

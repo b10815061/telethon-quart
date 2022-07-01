@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from dbconfig import engine
-from model import channels
+from model import channels, setting
 from typing import Any
 from PIL import Image
 import telethon
@@ -84,6 +84,28 @@ async def get(client):
         # for message in messages:
             # print(message.message)
             # print("\n")
+
+
+async def initial_info(client_id):
+    with Session(engine) as session:
+        exist = session.query(setting)\
+            .filter(setting.user_id == str(client_id))\
+            .all()
+        if len(exist) < 1:
+            init = model.setting(user_id=str(client_id),
+                                 font_size=20, language='Chinese')
+            session.add(init)
+            session.commit()
+
+
+async def retrieve_info(client_id):
+    with Session(engine) as session:
+        user_info = session.query(setting)\
+            .filter(setting.user_id == str(client_id))\
+            .first()
+        print(user_info.font_size)
+        print(user_info.language)
+        return user_info.font_size, user_info.language
 
 
 async def insert_user_channel(client_id, input_channel, input_pri):
