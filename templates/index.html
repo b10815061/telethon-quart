@@ -284,12 +284,11 @@
           console.log("reconnecting pri")
           msg = connect('/pri')
         }
-        console.log("set_pri")
         let obj = {
           channel : $('#pri_channel').val(),
-          pri : $('#pri').val()
+          pri : $('#pri').val(),
+          user_id : user_id
         }
-        console.log(obj)
         pri.send(JSON.stringify(obj))
         return false
         })
@@ -299,7 +298,10 @@
         disconn = connect('/disconnect')
       }
       console.log("disconnect")
-      disconn.send(1)
+      let obj = {
+        user_id : user_id
+      }
+      disconn.send(JSON.stringify(obj))
       return false
     })
 
