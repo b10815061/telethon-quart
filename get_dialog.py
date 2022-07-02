@@ -13,9 +13,10 @@ size = 64, 64
 
 async def get(client):
     me = await client.get_me()
-    # print(me)
+
     dialogs = await client.get_dialogs()
-    for i in range(10):
+    print(min(10, len(dialogs)))
+    for i in range(min(10, len(dialogs))):
 
         if(type(dialogs[i].message.peer_id) == telethon.tl.types.PeerChannel):
             # print(dialogs[i].message.peer_id)
@@ -111,17 +112,11 @@ async def retrieve_info(client_id):
 async def insert_user_channel(client_id, input_channel, input_pri):
     # find if it exists
     with Session(engine) as session:
-        exist = session.query(channels)\
-            .filter(channels.user_id == str(client_id))\
-            .all()
-
-        if(len(exist) < 1):
-
-            star_channel = model.channels(user_id=str(
-                client_id), priority=input_pri, channel_id=str(input_channel), message="")
-            session.add(star_channel)
-            session.commit()
-            return
+        star_channel = model.channels(user_id=str(
+            client_id), priority=input_pri, channel_id=str(input_channel), message="")
+        session.add(star_channel)
+        session.commit()
+        return
 
 
 async def retrive_prior(client_id, input_channel):
@@ -131,8 +126,7 @@ async def retrive_prior(client_id, input_channel):
             .filter(channels.user_id == str(client_id))\
             .filter(channels.channel_id == str(input_channel))\
             .first()
-
-    return (channel.priority)
+        return (channel.priority)
 
 # return 10 tuples for a given user
 
@@ -144,8 +138,7 @@ async def retrive_all(client_id):
             .filter(channels.user_id == str(client_id))\
             .order_by(channels.priority.asc())\
             .all()
-
-    return (channel)
+        return (channel)
 
 
 async def set_pri(channel_id, pri):
@@ -162,6 +155,6 @@ def check_user_existence(client_id: int) -> bool:
     with Session(engine) as session:
         exist = session.query(channels).filter(
             channels.user_id == str(client_id)).all()
-        if(len(exist)) > 1:
+        if(len(exist)) >= 1:
             return True
         return False

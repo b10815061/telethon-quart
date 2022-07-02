@@ -22,8 +22,7 @@ nest_asyncio.apply()
 app = Quart(__name__)
 api_id = 12655046
 api_hash = 'd84ab8008abfb3ec244630d2a6778fc6'
-client = None
-client_list = dict()
+client_list: dict[int, TelegramClient] = dict()
 
 # !!!!too slow
 
@@ -61,124 +60,137 @@ async def list():
     return res
 
 
+@app.route('/test')
+async def test():
+    userID = int(request.args.get("user_id"))
+
+    global client_list
+    if (userID) in client_list:
+        print(f"{userID} in list")
+        print(client_list[userID])
+    test = await client_list[userID].get_me()
+    print(test)
+    return str(test.id) + "," + str(test.is_self)
+
 # endPoint http://localhost:5000/getMessage?channel=(arbitrary)
+
+
 @app.route('/getMessage')
 async def getMessage():
-
-    print("\n\n\n\n", request.sid)
-    userID = request.args.get("userID")
+    user = int(request.args.get("user_id"))
     global client_list
-    print("userID exist : ",  userID in client_list)
+    key = utils.find_client(user, client_list)
+    if key != -1:
+        client = client_list[key]
+        if client.is_connected():
+            channel_id: int = request.args.get("channel")
+            from_message_id: int = 0 if request.args.get(
+                "message_id") == 0 else int(request.args.get("message_id"))
+            try:
+                channel_instance: telethon.Channel = await client.get_entity((int(channel_id)))
+                msgs: list[telethon.message] = await client.get_messages(channel_instance, limit=5, offset_id=from_message_id)
+                context: list[MessageObject] = []
 
-    if client != None and client.is_connected():
-        channel_id: int = request.args.get("channel")
-        from_message_id: int = 0 if request.args.get(
-            "message_id") == 0 else int(request.args.get("message_id"))
-        try:
-            channel_instance: telethon.Channel = await client.get_entity((int(channel_id)))
-            msgs: list[telethon.message] = await client.get_messages(channel_instance, limit=5, offset_id=from_message_id)
-            context: list[MessageObject] = []
-
-            msg_instance: telethon.message
-            for msg_instance in msgs:
-                # get the sender of the msg
-                try:
-                    # !!! messages in Chat (2 frineds channel) has no from_id attribute
-                    if(msg_instance.from_id != None):
-                        sender_instance = await client.get_entity(msg_instance.from_id.user_id)
-                    else:
-                        # which menas if the from_id is NoneType, then the channel itself is a user
-                        sender_instance = channel_instance
+                msg_instance: telethon.message
+                for msg_instance in msgs:
+                    # get the sender of the msg
                     try:
-                        if sender_instance.username != None:
-                            sender = sender_instance.username
-                        elif sender_instance.first_name != None:
-                            lname = sender_instance.last_name if sender_instance.last_name != None else ""
-                            sender = sender_instance.first_name + lname
+                        # !!! messages in Chat (2 frineds channel) has no from_id attribute
+                        if(msg_instance.from_id != None):
+                            sender_instance = await client.get_entity(msg_instance.from_id.user_id)
                         else:
-                            print("AN ERROR MIGHT OCCUR")
-                            print(sender_instance, end="\n\n\n")
-                    except:
-                        sender = sender_instance.title
-                except Exception as e:
-                    print(e)
-                    print(channel_instance)
-                    print(msgs[0])
-                # get the message content
-                try:
-                    if type(msg_instance.media) == telethon.tl.types.MessageMediaPhoto:
-                        tag = "image"
-                        image_path = await client.download_media(msg_instance)
-                        with open(image_path, 'rb') as f:
-                            image_data = f.read()
-                            msg_content = base64.b64encode(image_data).decode()
+                            # which menas if the from_id is NoneType, then the channel itself is a user
+                            sender_instance = channel_instance
+                        try:
+                            if sender_instance.username != None:
+                                sender = sender_instance.username
+                            elif sender_instance.first_name != None:
+                                lname = sender_instance.last_name if sender_instance.last_name != None else ""
+                                sender = sender_instance.first_name + lname
+                            else:
+                                print("AN ERROR MIGHT OCCUR")
+                                print(sender_instance, end="\n\n\n")
+                        except:
+                            sender = sender_instance.title
+                    except Exception as e:
+                        print(e)
+                        print(channel_instance)
+                        print(msgs[0])
+                    # get the message content
+                    try:
+                        if type(msg_instance.media) == telethon.tl.types.MessageMediaPhoto:
+                            tag = "image"
+                            image_path = await client.download_media(msg_instance)
+                            with open(image_path, 'rb') as f:
+                                image_data = f.read()
+                                msg_content = base64.b64encode(
+                                    image_data).decode()
+                            os.remove(image_path)
+                        elif type(msg_instance.media) == telethon.tl.types.MessageMediaDocument:
+                            # the rcv data is a mp4 (gif on the telegram perspective)
+                            if(msg_instance.media.document.mime_type == "video/mp4"):
+                                tag = "mp4"
+                                sticker_path = await client.download_media(msg_instance)
+                                with open(sticker_path, 'rb') as file:
+                                    mp4_data = file.read()
+                                    # convert mp4 into b64
+                                    msg_content = base64.b64encode(
+                                        mp4_data).decode()
+                                os.remove(sticker_path)
+                            # its a telegram sticker (.tgs file)
+                            elif(msg_instance.media.document.mime_type == "application/x-tgsticker"):
+                                tag = "gif"
+                                # use the library to convert .tgs to .gif; The frontend will need to specific the gif extension in tag
+                                sticker_path = await client.download_media(msg_instance)
+                                # convert .tgs to .gif
+                                cur = time.time_ns()
+                                # cannot solve frequency send in a short time due to the lib implementation
+                                msg_content = await sendGIF(cur, sticker_path)
+                            elif(msg_instance.media.document.mime_type == "audio/ogg"):
+                                tag = "audio"
+                                audio_path = await client.download_media(msg_instance)
+                                with open(audio_path, 'rb') as file:
+                                    oga_data = file.read()
+                                    msg_content = base64.b64encode(
+                                        oga_data).decode()
+                                os.remove(audio_path)
+                            elif(msg_instance.media.document.mime_type == 'application/pdf'):
+                                tag = "pdf"
+                                print(
+                                    f"message URL : https://t.me/c/{channel_id}/{msg_instance.id}")
+                        else:
+                            msg_content = msg_instance.message
+                            tag = "message"
+                            # to address the quote in msg
+                            msg_content.replace("\"", "\\\"")
+                    except Exception as e:
+                        print(e)
+                        print(msg_instance)
                         print(msg_content)
-                        os.remove(image_path)
-                    elif type(msg_instance.media) == telethon.tl.types.MessageMediaDocument:
-                        # the rcv data is a mp4 (gif on the telegram perspective)
-                        if(msg_instance.media.document.mime_type == "video/mp4"):
-                            tag = "mp4"
-                            sticker_path = await client.download_media(msg_instance)
-                            with open(sticker_path, 'rb') as file:
-                                mp4_data = file.read()
-                                # convert mp4 into b64
-                                msg_content = base64.b64encode(
-                                    mp4_data).decode()
-                            os.remove(sticker_path)
-                        # its a telegram sticker (.tgs file)
-                        elif(msg_instance.media.document.mime_type == "application/x-tgsticker"):
-                            tag = "gif"
-                            # use the library to convert .tgs to .gif; The frontend will need to specific the gif extension in tag
-                            sticker_path = await client.download_media(msg_instance)
-                            # convert .tgs to .gif
-                            cur = time.time_ns()
-                            # cannot solve frequency send in a short time due to the lib implementation
-                            msg_content = await sendGIF(cur, sticker_path)
-                        elif(msg_instance.media.document.mime_type == "audio/ogg"):
-                            tag = "audio"
-                            audio_path = await client.download_media(msg_instance)
-                            with open(audio_path, 'rb') as file:
-                                oga_data = file.read()
-                                msg_content = base64.b64encode(
-                                    oga_data).decode()
-                            os.remove(audio_path)
-                        elif(msg_instance.media.document.mime_type == 'application/pdf'):
-                            tag = "pdf"
-                            print(
-                                f"message URL : https://t.me/c/{channel_id}/{msg_instance.id}")
-                    else:
-                        msg_content = msg_instance.message
-                        tag = "message"
-                        # to address the quote in msg
-                        msg_content.replace("\"", "\\\"")
-                except Exception as e:
-                    print(e)
-                    print(msg_instance)
-                    print(msg_content)
 
-                # get the time when the message has been sent
-                msg_time: Timestamp = msg_instance.date
+                    # get the time when the message has been sent
+                    msg_time: Timestamp = msg_instance.date
 
-                obj = {
-                    "tag": tag,
-                    "channel": channel_id,
-                    "from": sender,
-                    "data": msg_content,
-                    "message_id": msg_instance.id,  # save the message id for advanced functions
-                    "timestamp": str(msg_time)
+                    obj = {
+                        "tag": tag,
+                        "channel": channel_id,
+                        "from": sender,
+                        "data": msg_content,
+                        "message_id": msg_instance.id,  # save the message id for advanced functions
+                        "timestamp": str(msg_time)
+                    }
+                    context.append(obj)
+
+                message = {
+                    "code": 200,
+                    "context": context
                 }
-                context.append(obj)
-
-            message = {
-                "code": 200,
-                "context": context
-            }
-        except Exception as e:
-            print(e)
-            message = {"code": 500, "error": e}
-            print("channel_not_found")
-    else:
-        message = {"code": 400, "error": "System : You are not connected"}
+            except Exception as e:
+                print(e)
+                message = {"code": 500, "error": e}
+                print("channel_not_found")
+        else:
+            message = {"code": 400, "error": "System : You are not connected"}
     return message
 
 
@@ -186,24 +198,41 @@ async def getMessage():
 async def conn():
     while True:
         phone = await websocket.receive()
-        global client
-        client = TelegramClient('+886918622947', api_id, api_hash)
+        client = TelegramClient(phone, api_id, api_hash)
         await client.connect()
         # login part
         if not await client.is_user_authorized():
             try:
                 await client.send_code_request(phone)
-                await websocket.send("System : please Enter Code to Enter")
-                Code = await websocket.receive()
+                sys = {
+                    'tag': 'system',
+                    'context': 'please enter code received in your telegram app'
+                }
+                sys = str(sys).replace('\'', '\"')
+                await websocket.send(sys)
+                # Code = await websocket.receive()
+                Code = input(f"Code for {phone} : ")
                 await client.sign_in(phone, Code)
             except:
-                await websocket.send("System : Invalid Phone Number")
-                await websocket.send("System : Login aborted")
+                sys = {
+                    'tag': 'system',
+                    'context': 'Invalid phone number'
+                }
+                sys = str(sys).replace('\'', '\"')
+                await websocket.send(sys)
+                sys = {
+                    'tag': 'system',
+                    'context': 'login aborted'
+                }
+                sys = str(sys).replace('\'', '\"')
+                await websocket.send(sys)
                 return
+
+        me = await client.get_me()
 
         sys = {
             "tag": "system",
-            "context": "Connected"
+            "context": f"Login as {me.id}"
         }
 
         sys = str(sys).replace('\'', '\"')
@@ -217,7 +246,8 @@ async def conn():
 
         # search by id
         async for message in client.iter_messages('Telegram', ids=7):
-            print(message.id, message)
+            continue
+            # print(message.id, message)
 
         # get the unread counts while user is offline
         dialogs: list[telethon.Dialog] = await client.get_dialogs()
@@ -239,17 +269,14 @@ async def conn():
             unread = str(unread).replace("\'", "\"")
             await websocket.send(unread)
 
-        me = await client.get_me()
-
+        # insert current user into user list
+        print(type(me.id))
         global client_list
         client_list[me.id] = client
 
-        print("\n\n\n\n\n", client_list[me.id])
-
         # initial database
         if(not get_dialog.check_user_existence(me.id)):
-            print("client inexsit")
-            await get_dialog.get(client)
+            await get_dialog.get(client_list[me.id])
             await get_dialog.initial_info(me.id)
 
         # get client info
@@ -307,7 +334,7 @@ async def conn():
         # print("DONE SENDING IMAGE\n\n")
 
         # hook on the incoming messages
-        @client.on(events.NewMessage())
+        @client_list[me.id].on(events.NewMessage())
         async def handler(event):
             print(event.message)
 
@@ -398,18 +425,24 @@ async def conn():
             except:
                 await client.send_read_acknowledge(channel_id.title,event.message)'''
 
-        await client.run_until_disconnected()
+        await client_list[me.id].run_until_disconnected()
 
 
 @app.websocket('/pri')
 async def pri():
     while True:
         data = await websocket.receive()
-        if client != None and client.is_connected():
-            priority_pair: tuple[int, int] = json.loads(data)
-            print(priority_pair["channel"], priority_pair["pri"])
-            await get_dialog.set_pri(priority_pair["channel"], priority_pair["pri"])
-            await websocket.send(f'System : set priority of {priority_pair["channel"]} to {priority_pair["pri"]}')
+        pri = json.loads(data)
+        user = int(pri["user_id"])
+        global client_list
+        key = utils.find_client(user, client_list)
+        if key != -1:
+            client = client_list[key]
+            if client.is_connected():
+                priority_pair: tuple[int, int] = json.loads(data)
+                print(priority_pair["channel"], priority_pair["pri"])
+                await get_dialog.set_pri(priority_pair["channel"], priority_pair["pri"])
+                await websocket.send(f'System : set priority of {priority_pair["channel"]} to {priority_pair["pri"]}')
         else:
             await websocket.send("System : You are not Connected!")
 
@@ -418,27 +451,43 @@ async def pri():
 async def ws():
     while True:
         data = await websocket.receive()
-        if client != None and client.is_connected():
-            pair = json.loads(data)
-            try:
-                id = pair["channel"]
-                name = await client.get_entity(int(id))
-                print(name)
-                await client.send_message(entity=name, message=pair["message"])
-                await websocket.send(f'{pair["channel"]} : {pair["message"]}')
-            except:
-                await websocket.send(f'you can\'t write in this channel ({pair["channel"]})')
-        else:
-            await websocket.send("System : You are not Connected!")
+        pair = json.loads(data)
+        user = int(pair["user_id"])
+        global client_list
+        key = utils.find_client(user, client_list)
+        if key != -1:
+            client = client_list[key]
+            if client.is_connected():
+                try:
+                    id = pair["channel"]
+                    name = await client.get_entity(int(id))
+                    print(name)
+                    await client.send_message(entity=name, message=pair["message"])
+                    await websocket.send(f'{pair["channel"]} : {pair["message"]}')
+                    print("message sent")
+                except:
+                    await websocket.send(f'you can\'t write in this channel ({pair["channel"]})')
+            else:
+                await websocket.send("System : You are not Connected!")
 
 
 @app.websocket('/disconnect')
 async def disconnect():
     while True:
-        await websocket.receive()
-        print("disconnect!")
-        await client.disconnect()
-        await websocket.send("System : Disconnected")
+        data = await websocket.receive()
+        dis = json.loads(data)
+        user = int(dis["user_id"])
+        global client_list
+        key = utils.find_client(user, client_list)
+        if key != -1:
+            client = client_list[key]
+
+            print("disconnect!")
+
+            await client.disconnect()
+            await websocket.send("System : Disconnected")
+        else:
+            await websocket.send("System : Client not exists")
 
 
 async def test():

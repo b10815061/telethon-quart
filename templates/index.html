@@ -12,7 +12,7 @@
 
     // channel & latest msg id map
     var latest_message_id = new Map()
-
+    var user_id = 0
     function getMessage(channel_id,message_id){
       
       //$('#from_message_id').filter(()=>{return $(this).val()==""}).val(0) // example of set the value of the specific tag if the value of it is not given.
@@ -20,9 +20,9 @@
       if(message_id==""){
         message_id = 0
       }
-      console.log(message_id)
+      console.log(user_id)
       $.ajax({
-        url:`http://localhost:5000/getMessage?channel=${channel_id}&message_id=${message_id}`,
+        url:`http://localhost:5000/getMessage?channel=${channel_id}&message_id=${message_id}&user_id=${user_id}`,
         dataType: 'json' // this implies that the backend should return a json format. If violates, the response will always end in the ".fail block. 
       })
       .done((res)=>{
@@ -33,7 +33,6 @@
         // still finding a solution to response with statusCode from Quart instead of writing the following code
         if(data.code == 200){
           if ($('#show_more') !== null){
-            console.log("found")
             $('#show_more').remove()
           }
           var msgDOM = document.getElementById("chatid")
@@ -48,7 +47,6 @@
             }else if(d.tag=="image"){
               var msgNode = document.createTextNode(d.channel +"[" + d.from + "]" + " : " );
               var image = document.createElement("img")
-              console.log(d.data)
               image.src = `data:image/jpeg;base64,${d.data}`  
               newDOM.appendChild(msgNode)
               newDOM.appendChild(image)
@@ -59,14 +57,12 @@
               video.src = `data:video/mp4;base64,${d.data}`
               video.autoplay = true
               video.loop = true
-              console.log(video)
               newDOM.appendChild(msgNode)
               newDOM.appendChild(video)
           }else if(d.tag=="gif"){
               var msgNode = document.createTextNode(d.channel +"[" + d.from + "]" + " : " );
               var gif = document.createElement("img")
               gif.src = `data:img/gif;base64,${d.data}`
-              console.log(gif)
               newDOM.appendChild(msgNode)
               newDOM.appendChild(gif)
           }else if(d.tag=="audio"){
@@ -78,7 +74,6 @@
               audio.setAttribute("controls","")
               audio.preload = "metadata"
               audio.appendChild(source)
-              console.log(audio)
               newDOM.appendChild(msgNode)
               newDOM.appendChild(audio)
           }
@@ -168,7 +163,10 @@
              var sys_dom = document.createTextNode("[System] :" + data.context )
              message_dom.appendChild(sys_dom);
              messages_dom.appendChild(message_dom);
-             if (data.context =='Connected'){
+             
+             if (data.context.slice(0,5) == "Login"){
+                user_id = parseInt(data.context.slice(9))
+                console.log(user_id)
                 $('#conn').attr('disabled',true);
                 $('#phone').attr('disabled',true);
              }
@@ -270,10 +268,11 @@
           console.log("reconnecting msg")
           msg = connect('/ws')
         }
-        console.log("send")
+        console.log(user_id)
         let obj = {
           channel : $('#channel').val(),
-          message : $('#message').val()
+          message : $('#message').val(),
+          user_id : user_id
         }
         console.log(obj)
         msg.send(JSON.stringify(obj))

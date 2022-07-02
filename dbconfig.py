@@ -12,7 +12,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 metadata = MetaData()
 users = Table('channels', metadata,
               Column('user_id', String),
-              Column('priority', Integer, unique=True),
+              Column('priority', Integer),
               Column('channel_id', String),
               Column('message', String)
               )
